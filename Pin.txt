@@ -1,0 +1,60 @@
+DigitalPin
+1  -> Button 1
+2  -> Button 2
+3  -> Button 3
+4  -> Button 4
+5  -> Button 5
+6  -> RGB LED
+7  -> LED
+8  -> RFID RST
+9  -> RFID SDA
+10 -> Vibrating Motor
+11 -> Black Light
+12 -> 7-segment A
+13 -> 7-segment B
+14 ->
+15 ->
+16 ->
+17 ->
+18 ->
+19 ->
+20 ->
+21 ->
+22 ->
+23 ->
+24 ->
+25 ->
+26 ->
+27 ->
+28 ->
+29 ->
+30 ->
+31 ->
+32 ->
+33 ->
+34 ->
+35 ->
+36 ->
+37 ->
+38 ->
+39 ->
+40 ->
+41 ->
+42 ->
+43 ->
+44 ->
+45 ->
+46 ->
+47 ->
+48 ->
+49 ->
+50 -> RFID MISO
+51 -> RFID MOSI
+52 -> RFID SCK
+
+Analog
+1 -> Microphone 1
+2 -> Microphone 2
+3 -> Microphone 3
+4 -> Microphone 4
+5 -> Microphone 5
