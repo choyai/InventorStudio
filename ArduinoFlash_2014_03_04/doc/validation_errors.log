@@ -1,0 +1,6 @@
+Text for description in nl.saxion.act.Arduino:Arduino/firmwareName/get is not valid.
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 69; The element type "code" must be terminated by the matching end-tag "</code>".
+
+Text for description in nl.saxion.act.Arduino.LowLevelArduino:LowLevelArduino/firmwareVersionString/get is not valid.
+org.xml.sax.SAXParseException; lineNumber: 1; columnNumber: 77; The element type "code" must be terminated by the matching end-tag "</code>".
+

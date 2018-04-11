@@ -1,0 +1,309 @@
+/* FirmataSender.as
+ *
+ * Released under MIT license: http://www.opensource.org/licenses/mit-license.php
+ * Copyright (C) 2013   Douwe A. van Twillert - Art & Technology
+ */
+
+ 
+package nl.saxion.act.Arduino.LowLevelArduino.Firmata
+{
+	import flash.net.Socket;
+	import flash.utils.ByteArray;
+
+	import nl.saxion.act.utils.Assert;
+
+	/**
+	 * @private
+	 * @author Douwe A. van Twillert, Saxion
+	 * The FirmataSender class sends commands according to the Firmata V2 protocol.
+	 * Works with an Arduino and the StandardFirmata firmware.
+	 * Based on ideas from Erik Sjodin, eriksjodin.net Bjoern Hartmann, bjoern.org and
+	 * Mochammad Effendi (Arduino Mega)
+	 *
+	 * TODO: CHECK if using analog pins as digital I/O (PORTC or PORT#=2) works.
+	 */
+	public class FirmataSender
+	{
+		private var _socket : Socket;
+		private var _host   : String;
+		private var _port   : int
+
+		public function FirmataSender( host : String = "localhost", port : int = 5331 )
+		{
+			Assert.isTrue( port >= 1024 && port < 65535, "Port (%1) must be from 1024 to 65535!", port );
+
+			_socket = new Socket();
+			_host   = host;
+			_port   = port;
+			_socket.connect( _host , _port );
+		}
+
+
+		// ================
+		// Public functions
+		// ================
+		public function reconnect() : void
+		{
+			_socket.connect( _host, _port );
+		}
+
+
+		// getters
+		public function get socket()      : Socket  { return _socket;           }
+		public function get host()        : String  { return _host;             }
+		public function get port()        : uint    { return _port;             }
+		public function get isConnected() : Boolean { return _socket.connected; }
+
+		//---------------------------------------
+		// toggle analogIn reporting by pin
+		// 0  toggle digitalIn reporting (0xC0-0xCF) (MIDI Program Change)
+		// 1  disable(0)/enable(non-zero)
+		//---------------------------------------
+		public function reportAnalogPin( pin : uint , mode : uint ) : void
+		{
+			Assert.isTrue( pin  < 16 , "pin (%1) must be between 0 and 15" , pin  );
+			Assert.isTrue( mode <  2 , "mode (%1) must be between 0 and 1" , mode );
+
+			_socket.writeByte( Firmata.REPORT_ANALOG + ( pin & 15 ) );
+			_socket.writeByte( mode                                 );
+			_socket.flush();
+		}
+
+
+		//---------------------------------------
+		// TODO FIX WRONG COMMENT
+		// 1  port number, between 1 and 15 (is pin number divided by 8)
+        // 2  isEnabled, 
+		//---------------------------------------
+		public function reportDigitalPort( port : uint , isEnabled : Boolean ) : void
+		{
+			Assert.isTrue( port < 16 , "port (%1) must be between 0 and 15", port );
+
+			_socket.writeByte( Firmata.REPORT_DIGITAL + ( port & 15 ) );
+			_socket.writeByte( isEnabled ? Firmata.ENABLE : Firmata.DISABLE );
+			_socket.flush();
+		}
+
+
+		//---------------------------------------
+		// 1  set digital pin mode (0xF4) (MIDI Undefined)
+        // 2  pin number (0-127)
+        // 3  state (INPUT/OUTPUT/ANALOG/PWM/SERVO, 0/1/2/3/4)
+		//---------------------------------------
+		public function setPinMode( pin : uint , mode : uint ) : void
+		{
+			Assert.isTrue(  pin < 128 , "pin (%1) must be between 0 and 127"               , pin       );
+			Assert.isTrue( mode < 256 , "mode (%1) for pin (%2) must be between 0 and 255" , mode, pin );
+
+			_socket.writeByte( Firmata.SET_PIN_MODE );
+			_socket.writeByte( pin & 127            );
+			_socket.writeByte( mode                 );
+			_socket.flush();
+		}
+
+
+		public function setupServo( pin : uint , angle : uint , minPulse : uint = 544 , maxPulse : uint = 2400 ) : void
+		{
+			Assert.isTrue( pin < 16 , "pin (%1) must be between 0 and 15", pin );
+
+			_socket.writeByte ( Firmata.SYSEX_START  );
+			_socket.writeByte ( Firmata.SERVO_CONFIG );
+			_socket.writeByte ( pin & 127            );
+			writeIntAsTwoBytes( minPulse             );
+			writeIntAsTwoBytes( maxPulse             );
+			writeIntAsTwoBytes( angle                );
+			_socket.writeByte ( Firmata.SYSEX_END    );
+			_socket.flush();
+		}
+
+
+		public function writeDigitalPins( channel : uint , pins : uint ) : void
+		{
+			_socket.writeByte( Firmata.DIGITAL_MESSAGE + channel );
+			writeIntAsTwoBytes( pins );
+			_socket.flush();
+		}
+
+
+		public function writeAnalogPin( pin : uint , value : uint ) : void
+		{
+			Assert.isTrue( pin   <  16 , "pin (%1) must be between 0 and 15"                 , pin        );
+			Assert.isTrue( value < 256 , "value (%1) for pin (%2) must be between 0 and 255" , value, pin );
+
+			_socket.writeByte( Firmata.ANALOG_MESSAGE + ( pin & 15 ) );
+			writeIntAsTwoBytes( value );
+			_socket.flush();
+		}
+
+
+		public function extendedWriteAnalogPin( pin : uint , value : uint ) : void
+		{
+			Assert.isTrue( pin < 128 , "pin (%1) must be between 0 and 127" , pin );
+
+			_socket.writeByte( Firmata.SYSEX_START     );
+			_socket.writeByte( Firmata.EXTENDED_ANALOG );
+			_socket.writeByte( pin   & 127 );
+			_socket.writeByte( value & 127 );
+			do {
+				value = value >> 7;
+				_socket.writeByte( value & 127 );
+			} while ( value > 0 ) ;
+			_socket.writeByte( Firmata.SYSEX_END       );
+ 			_socket.flush();
+		}
+
+
+		public function requestReportVersion() : void
+		{
+			trace( "Writing" );
+			_socket.writeByte( Firmata.REPORT_VERSION );
+			_socket.flush();
+		}
+
+
+		//FIRMATA2.0: SYSEX message to get version and name
+		public function requestFirmwareVersionAndName() : void
+		{
+			writeSysexRequest( Firmata.REPORT_VERSION );
+		}
+
+
+		//FIRMATA2.2: SYSEX message to get capabilities
+		public function requestCapabilities() : void
+		{
+			writeSysexRequest( Firmata.CAPABILITY_QUERY );
+		}
+
+
+		//FIRMATA2.2: SYSEX message to get current pin state
+		public function requestPinState( pin : uint ) : void
+		{
+			Assert.isTrue( pin < 128 , "pin (%1) must be between 0 and 127" , pin );
+
+			_socket.writeByte( Firmata.SYSEX_START     );
+			_socket.writeByte( Firmata.PIN_STATE_QUERY );
+			_socket.writeByte( pin & 127               );
+			_socket.writeByte( Firmata.SYSEX_END       );
+
+ 			_socket.flush();
+		}
+
+
+		public function systemReset() : void
+		{
+			_socket.writeByte( Firmata.SYSTEM_RESET );
+			_socket.flush();
+		}
+
+
+		public function sendI2CwriteRequest( slaveAddress : uint , data : Array ) : void
+		{
+			startI2Crequest( slaveAddress , Firmata.I2C_REQUEST_WRITE );
+			for each ( var value : uint in data ) {
+				writeIntAsTwoBytes( value );
+			}
+			endI2Crequest();
+		}
+
+
+		public function sendI2CreadOnceRequest( slaveAddress : uint, numberOfBytes : uint  ) : void
+		{
+			startI2Crequest( slaveAddress , Firmata.I2C_REQUEST_READ_ONCE );
+			writeIntAsTwoBytes( numberOfBytes );
+			endI2Crequest();
+		}
+
+
+		public function sendI2CreadContiniouslyRequest( slaveAddress : uint ) : void
+		{
+			sendI2Crequest( slaveAddress , Firmata.I2C_REQUEST_READ_CONTINUOUSLY );
+		}
+
+
+		public function sendI2CstopReadingRequest( slaveAddress : uint ) : void
+		{
+			sendI2Crequest( slaveAddress , Firmata.I2C_REQUEST_STOP_READING );
+		}
+
+
+		private function sendI2Crequest( slaveAddress : uint , addressMode : uint ) : void
+		{
+			startI2Crequest( slaveAddress , addressMode );
+			endI2Crequest();
+		}
+
+
+		private function startI2Crequest( slaveAddress : uint , addressMode : uint ) : void
+		{
+			if ( slaveAddress > 255 ) {
+				addressMode |= Firmata.I2C_10_BITS_ADDRESS_MODE;
+				addressMode |= ( slaveAddress >> 8 ) & 0x07;
+			}
+			_socket.writeByte( Firmata.SYSEX_START );
+			_socket.writeByte( Firmata.I2C_REQUEST );
+			_socket.writeByte( slaveAddress & 0xFF );
+			_socket.writeByte( addressMode  & 0xFF );
+		}
+
+
+		private function endI2Crequest() : void
+		{
+			_socket.writeByte ( Firmata.SYSEX_END );
+			_socket.flush();
+		}
+
+
+		public function sendI2Crequests() : void
+		{
+			_socket.flush();
+		}
+
+
+		public function sendI2Cconfig( powerPinSetting : Boolean , delay : uint ) : void
+		{
+			_socket.writeByte ( Firmata.SYSEX_START                                );
+			_socket.writeByte ( Firmata.I2C_CONFIG                                 );
+			_socket.writeByte ( powerPinSetting ? Firmata.ENABLE : Firmata.DISABLE );
+			writeIntAsTwoBytes( delay                                              );
+			_socket.writeByte ( Firmata.SYSEX_END                                  );
+		}
+
+
+		public function setSamplingInterval( intervalInMilliseconds : uint ) : void
+		{
+			_socket.writeByte ( Firmata.SYSEX_START       );
+			_socket.writeByte ( Firmata.SAMPLING_INTERVAL );
+			writeIntAsTwoBytes( intervalInMilliseconds    );
+			_socket.writeByte ( Firmata.SYSEX_END         );
+		}
+
+
+		// ===================
+		// Protected functions
+		// ===================
+		/**
+		 * Write up to 14 bits of an integer as two separate 7bit-bytes
+		 */
+		protected function writeIntAsTwoBytes( value : int ) : void
+		{
+			Assert.isTrue( value >= 0 && value < 16384 , "value (%1) must be between 0 and 16383" , value );
+			_socket.writeByte(   value        & 127 );  // LSB (0-6) first
+			_socket.writeByte( ( value >> 7 ) & 127 );  // MSB (7-13) second
+		}
+
+
+		/**
+		 * @private functions
+		 */
+		// =================
+		// Private functions
+		// =================
+		private function writeSysexRequest( sysExCommand : int ) : void
+		{
+			_socket.writeByte( Firmata.SYSEX_START );
+			_socket.writeByte( sysExCommand        );
+			_socket.writeByte( Firmata.SYSEX_END   );
+			_socket.flush();
+		}
+	}
+}

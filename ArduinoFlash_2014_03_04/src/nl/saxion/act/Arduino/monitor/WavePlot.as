@@ -1,0 +1,114 @@
+﻿/* WavePlot.as
+ *
+ * Released under MIT license: http://www.opensource.org/licenses/mit-license.php
+ * Copyright (C) 2013   Kasper Kamperman      - Art & Technology
+ *                      Douwe A. van Twillert - Art & Technology
+ */
+
+
+package nl.saxion.act.Arduino.monitor
+{
+	import flash.display.Sprite;
+	import flash.display.Graphics;
+	import flash.utils.Timer;
+	import flash.events.*;
+	import flash.text.*;
+	
+	/**
+	 * @private class, used by ArduinoMonitor
+	 */
+	public class WavePlot extends Sprite
+	{
+		private const BACKGROUND_COLOR : uint = 0xFFFFFF;
+		private const LINE_COLOR       : uint = 0x000000;
+		private const FILL_COLOR       : uint = 0xD08090; //  0x008800;
+		
+		private var _graphics     : Graphics;
+		private var _refreshTimer : Timer;
+		private var _waveHeight   : int;
+		private var _waveWidth    : int;
+		private var _values       : Array;
+		private var _lineColor    : uint;
+		private var _inputVal     : Number;
+		private var _scaleFactor  : Number;
+		
+		private var _graphLabel   : String;
+		private var _valueTF      : TextField;
+		private var _txtFormat    : TextFormat;
+		
+
+		public function WavePlot( graphLabel : String, width : uint = 128, height : uint = 128 , maxVal : uint = 1023 , color : uint = 0xD08090 )
+	    {
+			_waveHeight = height;
+			_waveWidth  = width;
+			_graphLabel = graphLabel;
+			
+			// scale the value so the maxvalue is on top of the graph.
+		    _scaleFactor = height/maxVal;
+			
+			var canvas : Sprite = new Sprite();
+			addChild( canvas );
+			
+			// don't plot more then 128 values, otherwise scale
+			if( _waveWidth > 128 )
+			{
+				canvas.scaleX = _waveWidth / 128;
+				_waveWidth = 128;
+			}
+			
+			_txtFormat       = new TextFormat();
+			_txtFormat.color = 0x000000;
+			_txtFormat.font  = "Arial";
+			_txtFormat.bold  = false;
+			_txtFormat.size  = 12;
+			
+			_valueTF       = new TextField();
+			_valueTF.width = 256;
+			_valueTF.text  = _graphLabel;
+			_valueTF.setTextFormat(_txtFormat);
+			addChild(_valueTF);
+			
+			canvas.x   = 0;
+			canvas.y   = 0;
+			_graphics  = canvas.graphics;
+			_lineColor = color;
+			_inputVal  = 0;
+			_values = new Array( _waveWidth );
+			
+			// init values array
+			for(var i:int =0; i<_waveWidth; i++) {
+				_values[i]=0;
+			}
+		}
+
+
+		public function set amplitude(v:Number):void
+		{
+			_inputVal = int( _scaleFactor * v );
+			//_txt.text = _t + " - value : " + v;
+			_valueTF.setTextFormat( _txtFormat );
+		}
+
+
+		public function refreshPlot() : void
+		{
+			_values.shift();
+			_values.push( _inputVal );
+			
+			_graphics.clear();
+			_graphics.beginFill( BACKGROUND_COLOR , 0.5 );
+			_graphics.lineStyle( 0.5 , LINE_COLOR );
+			_graphics.drawRect ( -1 , -1 , _waveWidth + 1 , _waveHeight + 1 );
+			_graphics.lineStyle( 0 , FILL_COLOR  );
+			_graphics.beginFill( _lineColor , 0.5 );
+			_graphics.moveTo   ( 0 , _waveHeight );
+			
+			for (var i:int = 0; i < _waveWidth; i++ ) {
+				_graphics.lineTo( i , _waveHeight - _values[i] );
+			}
+			_graphics.lineTo( i , _waveHeight );
+			_graphics.endFill();
+		}
+	}
+	
+}

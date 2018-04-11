@@ -1,0 +1,91 @@
+﻿/* PinConfigObj.as
+ *
+ * Released under MIT license: http://www.opensource.org/licenses/mit-license.php
+ * Copyright (C) 2011   Kasper Kamperman      - Art & Technology
+ *               2013   Douwe A. van Twillert - Art & Technology
+ */
+
+ 
+package nl.saxion.act.Arduino.monitor
+{
+	import flash.events.Event;
+	import flash.display.Sprite;
+	import flash.display.Graphics;
+	
+	import com.bit101.components.ComboBox;
+	
+	import nl.saxion.act.Arduino.LowLevelArduino.Firmata.Firmata;
+	import nl.saxion.act.Arduino.LowLevelArduino.LowLevelArduino;
+
+
+	/**
+	 * @private class, used by ArduinoMonitor
+	 */
+	public class PinConfigObj extends Sprite
+  	{
+		private var _pin           : int;
+		private var _pinState      : String;
+
+		private var _configItems   : Array;
+  		private var _comboBox      : ComboBox;
+		private var _background    : Sprite;
+
+		private var _monitorObject : PinMonitorObj;
+		private var _arduino       : LowLevelArduino;
+
+  		public function PinConfigObj( arduino : LowLevelArduino , pin : int, monitorObject : PinMonitorObj )
+		{
+			_pin           = pin;
+			_arduino       = arduino;
+			_monitorObject = monitorObject;
+		
+			_configItems = new Array();
+ 			_comboBox    = new ComboBox();
+			_background  = new Sprite();
+
+			for ( var capability : int = Firmata.INPUT ; capability < Firmata.TOTAL_PIN_MODES ; capability++ ) {
+				if ( _arduino.isCapabilityOfPin(_pin, capability )  ) {
+					_configItems.push( Firmata.capability2string( capability ) );
+				}
+			}
+
+			_comboBox = new ComboBox( this, 0, 2, "Pin " + _pin, _configItems );
+			if ( _pinState )
+			{
+			  _comboBox.selectedItem = _pinState;
+			}
+			else
+			{
+				_comboBox.selectedIndex = 0;
+				_pinState = _comboBox.selectedItem.toString();
+			}
+			_comboBox.addEventListener( Event.SELECT, comboBoxChangeHandler);
+			
+			addChild( _background );
+			addChild( _comboBox   );
+			
+		}
+
+
+		// ==============
+		// Event handlers
+		// ==============
+		public function update( state : uint ) : void
+		{
+			_pinState = Firmata.capability2string( state );
+			_comboBox.selectedItem = _pinState;
+			comboBoxChangeHandler( null );
+		}
+
+
+		// =================
+		// Private functions
+		// =================
+		private function comboBoxChangeHandler( event : Event ) : void
+		{
+	        _pinState = _comboBox.selectedItem.toString();
+			_arduino.setPinMode( _pin, Firmata.pinConfig2firmataCommand( _pinState ) );
+			_monitorObject.updatePinConfig( _pinState );
+		}
+	}
+}
