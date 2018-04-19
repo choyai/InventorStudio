@@ -4,7 +4,7 @@ DigitalPin
 3  -> Button 3
 4  -> Button 4
 5  -> Button 5
-6  -> RGB LED
+6  -> 
 7  -> LED
 8  -> RFID RST
 9  -> RFID SDA
@@ -12,9 +12,9 @@ DigitalPin
 11 -> Black Light
 12 -> 7-segment A
 13 -> 7-segment B
-14 ->
-15 ->
-16 ->
+14 -> RGB LED RED
+15 -> RGB LED GREEN
+16 -> RGB LED BLUE
 17 ->
 18 ->
 19 ->
